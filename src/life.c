@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h> 
+#include <unistd.h>
 
 #define ROWS 20
 #define COLS 40
@@ -9,18 +9,22 @@
 #define LIVE_CELL 'O'
 #define DEAD_CELL '.'
 
-int current_grid[ROWS][COLS];
-int next_grid[ROWS][COLS];
+int** current_grid;
+int** next_grid;
 
+void allocate_grids();
 void init_grid();
 void display_grid();
 int count_neighbors(int r, int c);
+void swap_grids();
+void cleanup_grids();
 void compute_next_generation();
 
 int main() {
+    allocate_grids();
     init_grid();
 
-    while (1) {
+    for (int gen = 0; gen < 1000; gen++) {
         display_grid();
 
         compute_next_generation();
@@ -28,7 +32,19 @@ int main() {
         usleep(DELAY_MICROSECONDS); 
     }
 
+    cleanup_grids();
     return 0;
+}
+
+void allocate_grids() {
+    current_grid = (int**)malloc(ROWS * sizeof(int*));
+    next_grid = (int**)malloc(ROWS * sizeof(int*));
+
+    for (int i = 0; i < ROWS; i++) {
+        // For each row, allocate the columns
+        current_grid[i] = (int*)malloc(COLS * sizeof(int));
+        next_grid[i] = (int*)malloc(COLS * sizeof(int));
+    }
 }
 
 // Initialize the grid with a specific pattern
@@ -97,6 +113,21 @@ int count_neighbors(int r, int c) {
     return count;
 }
 
+void swap_grids() {
+    int** temp = current_grid; // 1. Hold the address of the current grid
+    current_grid = next_grid;  // 2. Point 'current' to the calculated 'next' data
+    next_grid = temp;          // 3. Recycle the old 'current' memory as the new 'next' buffer
+}
+
+void cleanup_grids() {
+    for (int i = 0; i < ROWS; i++) {
+        free(current_grid[i]);
+        free(next_grid[i]);
+    }
+    free(current_grid);
+    free(next_grid);
+}
+
 // Apply the 4 Rules of Life
 void compute_next_generation() {
     for (int i = 0; i < ROWS; i++) {
@@ -127,11 +158,6 @@ void compute_next_generation() {
         }
     }
 
-    // 3. The Swap
-    // Copy the 'next' state into 'current' state for the next loop
-    for (int i = 0; i < ROWS; i++) {
-        for (int j = 0; j < COLS; j++) {
-            current_grid[i][j] = next_grid[i][j];
-        }
-    }
+    // 3. Pointer Swap
+    swap_grids();
 }
