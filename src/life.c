@@ -97,17 +97,11 @@ int count_neighbors(int r, int c) {
             // Skip the center cell
             if (i == 0 && j == 0) continue;
 
-            // Calculate neighbor coordinates
-            int neighbor_r = r + i;
-            int neighbor_c = c + j;
+            //Toroidal wrapping
+            int neighbor_r = (r + i + ROWS) % ROWS;
+            int neighbor_c = (c + j + COLS) % COLS;
 
-            // Boundary Check: Ensure we don't read outside the array
-            // If neighbor is off-screen, we treat it as dead (do nothing).
-            if (neighbor_r >= 0 && neighbor_r < ROWS && neighbor_c >= 0 && neighbor_c < COLS) {
-                
-                // Add the value (1 if alive, 0 if dead)
-                count += current_grid[neighbor_r][neighbor_c];
-            }
+            count += current_grid[neighbor_r][neighbor_c];
         }
     }
     return count;
