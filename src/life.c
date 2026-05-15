@@ -1,134 +1,115 @@
+#include <SDL2/SDL.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <time.h>
+#include <stdbool.h>
 #include "grid.h"
 
-#define DELAY_MICROSECONDS 100000 // 0.1 seconds between frames
-
-#define LIVE_CELL 'O'
-#define DEAD_CELL '.'
+#define CELL_SIZE 20
+#define WINDOW_WIDTH  (COLS * CELL_SIZE)
+#define WINDOW_HEIGHT (ROWS * CELL_SIZE)
+#define DELAY_MS 100
 
 void init_grid();
-void display_grid();
+void render_grid(SDL_Renderer *renderer);
 
 int main() {
+    // 1. Initialize SDL
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        printf("SDL Init Error: %s\n", SDL_GetError());
+        return 1;
+    }
+
+    // 2. Create Window & Renderer
+    SDL_Window *window =
+        SDL_CreateWindow(
+            "Game of Life",
+            SDL_WINDOWPOS_CENTERED,
+            SDL_WINDOWPOS_CENTERED,
+            WINDOW_WIDTH,
+            WINDOW_HEIGHT,
+            0
+        );
+
+    if (!window) {
+        printf("Window Error: %s\n", SDL_GetError());
+        return 1;
+    }
+
+    SDL_Renderer *renderer =
+        SDL_CreateRenderer(
+            window,
+            -1,
+            SDL_RENDERER_ACCELERATED
+        );
+
     allocate_grids();
     init_grid();
 
-    for (int gen = 0; gen < 1000; gen++) {
-        display_grid();
+    bool running = true;
+    SDL_Event event;
+
+    while (running) {
+
+        // Event handling
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT)
+                running = false;
+        }
+
+        // Clear screen (black)
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+
+        // Draw cells
+        render_grid(renderer);
+
+        // Show frame
+        SDL_RenderPresent(renderer);
 
         compute_next_generation();
 
-        usleep(DELAY_MICROSECONDS); 
+        SDL_Delay(DELAY_MS);
     }
 
     cleanup_grids();
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+
     return 0;
 }
 
 void init_grid() {
-    int choice;
-    int r, c;
-
-    // 1. Clear the grid with all zeros
-    for (int i = 0; i < ROWS; i++) {
-        for (int j = 0; j < COLS; j++) {
+    for (int i = 0; i < ROWS; i++)
+        for (int j = 0; j < COLS; j++)
             current_grid[i][j] = 0;
-        }
-    }
 
-    // 2. Display the Menu
-    printf("\n--- GAME OF LIFE SETUP ---\n");
-    printf("1. Glider (Moving Pattern)\n");
-    printf("2. Blinker (Oscillator)\n");
-    printf("3. Random Soup\n");
-    printf("4. Custom Input (Draw your own)\n");
-    printf("Select an option: ");
-    if (scanf("%d", &choice) != 1) {
-        choice = 1; // default
-    }
-
-    // 3. Handle the Choice
-    switch(choice) {
-        case 1: // Glider
-            current_grid[1][2] = 1;
-            current_grid[2][3] = 1;
-            current_grid[3][1] = 1;
-            current_grid[3][2] = 1;
-            current_grid[3][3] = 1;
-            printf("Glider selected.\n");
-            break;
-
-        case 2: // Blinker
-            current_grid[10][10] = 1;
-            current_grid[10][11] = 1;
-            current_grid[10][12] = 1;
-            printf("Blinker selected.\n");
-            break;
-
-        case 3: // Random
-            srand(time(0)); // Seed the random number generator
-            for (int i = 0; i < ROWS; i++) {
-                for (int j = 0; j < COLS; j++) {
-                    // 20% chance of a cell being alive
-                    if ((rand() % 5) == 0) {
-                        current_grid[i][j] = 1;
-                    }
-                }
-            }
-            printf("Random Chaos initialized.\n");
-            break;
-
-        case 4: // Custom Input Loop
-             while (1) {
-                // Show current state
-                display_grid();
-                
-                printf("\n--- CUSTOM DRAW MODE ---\n");
-                printf("Enter 'Row Col' to toggle a cell (e.g. 5 5).\n");
-                printf("Enter '-1 -1' to START simulation.\n");
-                printf(">> ");
-
-                if (scanf("%d %d", &r, &c) != 2) {
-                    break;
-                }
-
-                if (r == -1 && c == -1) break;
-
-                if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
-                    // Toggle: 1->0 or 0->1
-                    current_grid[r][c] = !current_grid[r][c];
-                } else {
-                    printf("Invalid coordinate! Range: 0-%d, 0-%d\n", ROWS-1, COLS-1);
-                }
-            }
-            break;
-
-        default:
-            printf("Invalid choice! Defaulting to Glider.\n");
-            current_grid[1][2] = 1;
-            current_grid[2][3] = 1;
-            current_grid[3][1] = 1;
-            current_grid[3][2] = 1;
-            current_grid[3][3] = 1;
-            break;
-    }
-    
-    printf("Starting simulation in 1 second...\n");
-    sleep(1);
+    // Glider pattern
+    current_grid[1][2] = 1;
+    current_grid[2][3] = 1;
+    current_grid[3][1] = 1;
+    current_grid[3][2] = 1;
+    current_grid[3][3] = 1;
 }
 
-void display_grid() {
-    // ANSI Escape Code: "\033[H\033[J" clears the terminal screen
-    printf("\033[H\033[J"); 
+void render_grid(SDL_Renderer *renderer) {
+
+    SDL_Rect cell;
+    cell.w = CELL_SIZE;
+    cell.h = CELL_SIZE;
 
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLS; j++) {
-            // If cell is 1, print 'O', else print '.'
-            printf("%c ", current_grid[i][j]? LIVE_CELL : DEAD_CELL);
+
+            if (current_grid[i][j]) {
+
+                // Alive = white
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+
+                cell.x = j * CELL_SIZE;
+                cell.y = i * CELL_SIZE;
+
+                SDL_RenderFillRect(renderer, &cell);
+            }
         }
-        printf("\n");
     }
 }
